@@ -19,6 +19,9 @@ VS Code SCM view, without leaving BB.
   - current branch, ahead/behind counts
   - **Staged Changes** and **Changes** groups, each file with a status letter
     (`M`/`A`/`D`/`R`/`C`/`T`/`U`/`!`)
+  - **list / tree toggle** (toolbar) — flat paths, or a collapsible folder
+    tree with single-child chains compacted; folder rows stage / unstage /
+    discard everything under them. Preference persists.
   - per-file **Stage** / **Unstage** / **Discard**, plus **Stage All** /
     **Unstage All** on each group
   - click a file to see its unified/split diff (BB's `experimental_Diff`
