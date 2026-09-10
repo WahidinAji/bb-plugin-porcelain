@@ -12,6 +12,10 @@ VS Code SCM view, without leaving BB.
 
 - **"Changes" tab** in the thread's right panel (`+` → Changes). Flush-layout
   panel that owns its UI:
+  - **repository picker** — if the environment root is a git repo it's used
+    directly; if not, the panel scans up to 3 levels down for nested repos
+    (a "projects folder" layout) and lets you choose which one to manage. The
+    choice sticks per thread. A lone nested repo is selected automatically.
   - current branch, ahead/behind counts
   - **Staged Changes** and **Changes** groups, each file with a status letter
     (`M`/`A`/`D`/`R`/`C`/`T`/`U`/`!`)

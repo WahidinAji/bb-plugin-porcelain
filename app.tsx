@@ -19,7 +19,7 @@ import type {
   PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
-import type { ChangeCode, FileChange, GitStatus } from "./contract";
+import type { ChangeCode, FileChange, GitStatus, RepoEntry } from "./contract";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,8 +38,15 @@ interface StatusResult {
   environmentId: string;
   hostId: string;
   workspacePath: string | null;
+  rootIsRepo: boolean;
+  repos: RepoEntry[];
+  selectedRelPath: string;
   status: GitStatus;
 }
+
+const repoLabel = (repo: RepoEntry): string =>
+  (repo.relPath === "." ? "workspace root" : repo.relPath) +
+  (repo.branch ? ` · ${repo.branch}` : "");
 interface DiffResult {
   patch: string;
   binary: boolean;
@@ -283,6 +290,10 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
   const [pendingDiscard, setPendingDiscard] = useState<string[] | null>(null);
 
   const status = data?.status;
+  const repos = data?.repos ?? [];
+  const selectedRepo = data?.selectedRelPath ?? "";
+  const rootIsRepo = data?.rootIsRepo ?? false;
+  const showRepoPicker = repos.length > 1 || (!rootIsRepo && repos.length >= 1);
   const files = status?.files ?? [];
   const stagedFiles = useMemo(
     () => files.filter((f) => f.staged !== "none" && f.staged !== "untracked"),
@@ -354,6 +365,13 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
   const unstage = (paths: string[]) =>
     void run("unstage", () => rpc.call("unstage", { threadId, paths }));
 
+  const switchRepo = async (relPath: string) => {
+    if (relPath === selectedRepo || busy) return;
+    setSelected(null);
+    setCommitMessage("");
+    await run("repo", () => rpc.call("selectRepo", { threadId, relPath }));
+  };
+
   const confirmDiscard = async () => {
     if (!pendingDiscard) return;
     const paths = pendingDiscard;
@@ -414,6 +432,38 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
     body = <Centered tone="error">{error}</Centered>;
   } else if (data && data.workspacePath === null) {
     body = <Centered>This thread has no local working directory.</Centered>;
+  } else if (!rootIsRepo && repos.length === 0) {
+    body = <Centered>No Git repository found in this workspace.</Centered>;
+  } else if (!status?.isGitRepo && selectedRepo === "") {
+    body = (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6">
+        <p className="text-center text-sm text-muted-foreground">
+          This workspace has no Git repo at its root, but{" "}
+          {repos.length === 1 ? "one was" : `${repos.length} were`} found
+          inside. Pick one to manage:
+        </p>
+        <div className="flex w-full max-w-sm flex-col gap-1">
+          {repos.map((repo) => (
+            <button
+              key={repo.relPath}
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void switchRepo(repo.relPath)}
+              className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-left hover:bg-state-hover disabled:opacity-50"
+            >
+              <span className="truncate text-sm">
+                {repo.relPath === "." ? "workspace root" : repo.relPath}
+              </span>
+              {repo.branch ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {repo.branch}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   } else if (status && !status.isGitRepo) {
     body = <Centered>Not a Git repository.</Centered>;
   } else if (files.length === 0) {
@@ -534,6 +584,32 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-sm text-foreground">
+      {showRepoPicker ? (
+        <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+          <Icon
+            name="FolderGit"
+            className="size-4 shrink-0 text-muted-foreground"
+          />
+          <select
+            aria-label="Repository"
+            value={selectedRepo}
+            disabled={busy !== null}
+            onChange={(event) => void switchRepo(event.target.value)}
+            className="h-7 min-w-0 flex-1 truncate rounded-md border border-input bg-transparent px-1.5 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          >
+            {!rootIsRepo && selectedRepo === "" ? (
+              <option value="" disabled>
+                Select a repository…
+              </option>
+            ) : null}
+            {repos.map((repo) => (
+              <option key={repo.relPath} value={repo.relPath}>
+                {repoLabel(repo)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Icon name="GitBranch" className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">
@@ -738,21 +814,30 @@ function ChangesHeaderButton({
   const { data } = useChanges(threadId);
   const nav = useBbNavigate();
   const status = data?.status;
-  if (!status?.isGitRepo) return null;
-  const count = status.files.length;
+  const repoCount = data?.repos.length ?? 0;
+  // Show once we know there's something to manage: an active repo, or nested
+  // repos waiting to be picked.
+  if (!data || (!data.rootIsRepo && repoCount === 0)) return null;
+  const active = status?.isGitRepo ?? false;
+  const count = status?.files.length ?? 0;
+  const badge = active ? String(count) : `${repoCount} repos`;
   return (
     <Button
       variant="ghost"
       size="sm"
       className="h-7 gap-1.5 px-2"
-      aria-label={`Changes: ${count} file${count === 1 ? "" : "s"}`}
+      aria-label={
+        active
+          ? `Changes: ${count} file${count === 1 ? "" : "s"}`
+          : `Changes: choose from ${repoCount} repositories`
+      }
       onClick={() =>
         nav.openThreadPanel({ actionId: "porcelain", title: "Changes" })
       }
     >
       <Icon name="GitBranch" className="size-4" />
       {isCompactViewport ? null : (
-        <span className="text-xs tabular-nums">{count}</span>
+        <span className="text-xs tabular-nums">{badge}</span>
       )}
     </Button>
   );

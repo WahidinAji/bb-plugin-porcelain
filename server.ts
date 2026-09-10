@@ -6,8 +6,9 @@
 // operation to the full-trust host worker (host.ts). Any mutation publishes a
 // realtime signal so every open panel for that thread refetches.
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
+import { resolve, sep } from "node:path";
 import { z } from "zod";
-import { hostContract, gitStatusSchema } from "./contract.js";
+import { hostContract, gitStatusSchema, repoEntrySchema } from "./contract.js";
 
 const thread = z.object({ threadId: z.string().min(1) });
 const paths = z.array(z.string().min(1)).min(1).max(2000);
@@ -20,8 +21,18 @@ export const rpcContract = defineRpcContract({
       environmentId: z.string(),
       hostId: z.string(),
       workspacePath: z.string().nullable(),
+      /** True when the environment root is itself a git worktree. */
+      rootIsRepo: z.boolean(),
+      /** Repos the panel can target (the root, or nested ones). */
+      repos: z.array(repoEntrySchema),
+      /** Which repo is active: "" (none chosen), "." (root), or a relPath. */
+      selectedRelPath: z.string(),
       status: gitStatusSchema,
     }),
+  },
+  selectRepo: {
+    input: thread.extend({ relPath: z.string() }).strict(),
+    output: actionResult,
   },
   diff: {
     input: thread
@@ -90,6 +101,30 @@ export const rpcContract = defineRpcContract({
 });
 
 const channel = (threadId: string): string => `porcelain:${threadId}`;
+const repoKey = (threadId: string): string => `repo:${threadId}`;
+const DISCOVER_DEPTH = 3;
+
+const EMPTY_STATUS = {
+  isGitRepo: false,
+  branch: null,
+  detached: false,
+  upstream: null,
+  ahead: 0,
+  behind: 0,
+  hasRemote: false,
+  files: [] as never[],
+};
+
+/** Join a chosen sub-repo onto the env root, refusing anything that escapes it. */
+function repoDir(root: string, relPath: string): string {
+  if (!relPath || relPath === ".") return root;
+  const base = resolve(root);
+  const target = resolve(root, relPath);
+  if (target !== base && !target.startsWith(base + sep)) {
+    throw new Error("Selected directory is outside the workspace.");
+  }
+  return target;
+}
 
 export default async function plugin(bb: BbPluginApi) {
   bb.log.info("loaded");
@@ -107,7 +142,10 @@ export default async function plugin(bb: BbPluginApi) {
     return { environmentId, hostId: env.hostId, workspacePath: env.path };
   }
 
-  /** Resolve + assert a local worktree, then return host call context. */
+  /**
+   * Resolve the git directory this thread's panel currently targets: the
+   * environment root, or the nested repo the user picked (stored in kv).
+   */
   async function workspace(threadId: string) {
     const { environmentId, hostId, workspacePath } = await locate(threadId);
     if (!workspacePath) {
@@ -115,7 +153,12 @@ export default async function plugin(bb: BbPluginApi) {
         "This thread's environment has no local working directory.",
       );
     }
-    return { environmentId, hostId, cwd: workspacePath };
+    const selected = (await bb.storage.kv.get<string>(repoKey(threadId))) ?? "";
+    return {
+      environmentId,
+      hostId,
+      cwd: repoDir(workspacePath, selected),
+    };
   }
 
   function notify(threadId: string): void {
@@ -130,24 +173,82 @@ export default async function plugin(bb: BbPluginApi) {
           environmentId,
           hostId,
           workspacePath: null,
-          status: {
-            isGitRepo: false,
-            branch: null,
-            detached: false,
-            upstream: null,
-            ahead: 0,
-            behind: 0,
-            hasRemote: false,
-            files: [],
-          },
+          rootIsRepo: false,
+          repos: [],
+          selectedRelPath: "",
+          status: EMPTY_STATUS,
         };
       }
-      const status = await host.call(
-        "status",
-        { cwd: workspacePath },
+
+      const discovered = await host.call(
+        "discoverRepos",
+        { cwd: workspacePath, maxDepth: DISCOVER_DEPTH },
         { hostId },
       );
-      return { environmentId, hostId, workspacePath, status };
+
+      let selected =
+        (await bb.storage.kv.get<string>(repoKey(threadId))) ?? "";
+      if (discovered.rootIsRepo) {
+        selected = ".";
+      } else {
+        const known = new Set(discovered.repos.map((r) => r.relPath));
+        if (!known.has(selected)) {
+          // Auto-pick when there is exactly one; otherwise wait for a choice.
+          selected =
+            discovered.repos.length === 1 ? discovered.repos[0].relPath : "";
+          if (selected) await bb.storage.kv.set(repoKey(threadId), selected);
+        }
+      }
+
+      const base = {
+        environmentId,
+        hostId,
+        workspacePath,
+        rootIsRepo: discovered.rootIsRepo,
+        repos: discovered.repos,
+        selectedRelPath: selected,
+      };
+
+      if (!discovered.rootIsRepo && selected === "") {
+        return { ...base, status: EMPTY_STATUS };
+      }
+
+      const status = await host.call(
+        "status",
+        { cwd: repoDir(workspacePath, selected) },
+        { hostId },
+      );
+      return { ...base, status };
+    },
+
+    async selectRepo({ threadId, relPath }) {
+      const { hostId, workspacePath } = await locate(threadId);
+      if (!workspacePath) {
+        return { ok: false, message: "No local working directory." };
+      }
+      const discovered = await host.call(
+        "discoverRepos",
+        { cwd: workspacePath, maxDepth: DISCOVER_DEPTH },
+        { hostId },
+      );
+      const allowed = new Set<string>([
+        "",
+        ".",
+        ...discovered.repos.map((r) => r.relPath),
+      ]);
+      if (!allowed.has(relPath)) {
+        return { ok: false, message: "Unknown directory." };
+      }
+      const stored = relPath || (discovered.rootIsRepo ? "." : "");
+      await bb.storage.kv.set(repoKey(threadId), stored);
+      notify(threadId);
+      return {
+        ok: true,
+        message:
+          stored && stored !== "."
+            ? `Now tracking ${stored}.`
+            : "Now tracking the workspace root.",
+      };
     },
 
     async diff({ threadId, path, origPath, staged }) {

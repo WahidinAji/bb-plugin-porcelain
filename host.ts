@@ -5,8 +5,9 @@
 // Everything here is ordinary Node: we shell out to `git` in that directory.
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { spawn } from "node:child_process";
-import { rm } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import type { Dirent } from "node:fs";
+import { readdir, rm } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, sep } from "node:path";
 import {
   hostContract,
   type ChangeCode,
@@ -267,6 +268,74 @@ export default experimental_defineHostEntry({
         hasRemote: remotes.trim().length > 0,
         ...parseStatus(raw),
       };
+    },
+
+    async discoverRepos({ cwd, maxDepth }, { signal }) {
+      assertCwd(cwd);
+
+      if (await isInsideWorkTree(cwd, signal)) {
+        const top = (
+          await git(cwd, ["rev-parse", "--show-toplevel"], signal)
+        ).trim();
+        const branch =
+          (
+            await runGit(cwd, ["branch", "--show-current"], signal)
+          ).stdout.trim() || null;
+        return {
+          rootIsRepo: true,
+          repos: [{ relPath: ".", name: basename(top) || ".", branch }],
+        };
+      }
+
+      const SKIP = new Set([
+        "node_modules",
+        ".git",
+        "vendor",
+        "dist",
+        "build",
+        "out",
+        ".next",
+        "target",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".cache",
+        "coverage",
+      ]);
+      const MAX_REPOS = 50;
+      const repos: {
+        relPath: string;
+        name: string;
+        branch: string | null;
+      }[] = [];
+
+      const walk = async (dir: string, depth: number): Promise<void> => {
+        if (repos.length >= MAX_REPOS || depth > maxDepth) return;
+        let entries: Dirent[];
+        try {
+          entries = await readdir(dir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        if (entries.some((entry) => entry.name === ".git")) {
+          const rel = relative(cwd, dir).split(sep).join("/") || ".";
+          const branch =
+            (
+              await runGit(dir, ["branch", "--show-current"], signal)
+            ).stdout.trim() || null;
+          repos.push({ relPath: rel, name: rel.split("/").pop() || rel, branch });
+          return; // a repo's own subtree is not scanned further
+        }
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          if (entry.name.startsWith(".") || SKIP.has(entry.name)) continue;
+          await walk(join(dir, entry.name), depth + 1);
+        }
+      };
+
+      await walk(cwd, 0);
+      repos.sort((a, b) => a.relPath.localeCompare(b.relPath));
+      return { rootIsRepo: false, repos };
     },
 
     async diff({ cwd, path, origPath, staged }, { signal }) {

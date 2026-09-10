@@ -48,10 +48,30 @@ const cwd = z.string().min(1);
 const paths = z.array(z.string().min(1)).min(1).max(2000);
 const actionResult = z.object({ ok: z.boolean(), message: z.string() });
 
+export const repoEntrySchema = z.object({
+  /** Path relative to the environment root; "." when the root itself is a repo. */
+  relPath: z.string(),
+  name: z.string(),
+  branch: z.string().nullable(),
+});
+export type RepoEntry = z.infer<typeof repoEntrySchema>;
+
 export const hostContract = defineRpcContract({
   status: {
     input: z.object({ cwd }).strict(),
     output: gitStatusSchema,
+  },
+  // Find the git repo(s) a Changes panel can target. If `cwd` is itself a
+  // worktree, that is the only answer. Otherwise scan a few levels down for
+  // nested repos (a "projects folder" layout) and let the user pick one.
+  discoverRepos: {
+    input: z
+      .object({ cwd, maxDepth: z.number().int().min(1).max(4).default(3) })
+      .strict(),
+    output: z.object({
+      rootIsRepo: z.boolean(),
+      repos: z.array(repoEntrySchema),
+    }),
   },
   diff: {
     input: z
