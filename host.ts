@@ -132,7 +132,10 @@ async function isInsideWorkTree(cwd: string, signal: AbortSignal): Promise<boole
 
 function parseStatus(
   raw: string,
-): Omit<GitStatus, "isGitRepo" | "hasRemote" | "branches"> {
+): Omit<
+  GitStatus,
+  "isGitRepo" | "hasRemote" | "branches" | "remoteBranches"
+> {
   const tokens = raw.split("\0");
   let branch: string | null = null;
   let upstream: string | null = null;
@@ -251,6 +254,7 @@ export default experimental_defineHostEntry({
           behind: 0,
           hasRemote: false,
           branches: [],
+          remoteBranches: [],
           files: [],
         };
       }
@@ -266,25 +270,32 @@ export default experimental_defineHostEntry({
         signal,
       );
       const remotes = await git(cwd, ["remote"], signal);
-      const branchList = await git(
-        cwd,
-        [
-          "for-each-ref",
-          "--sort=-committerdate",
-          "--format=%(refname:short)",
-          "--count=200",
-          "refs/heads/",
-        ],
-        signal,
+      const refLines = async (glob: string) =>
+        (
+          await git(
+            cwd,
+            [
+              "for-each-ref",
+              "--sort=-committerdate",
+              "--format=%(refname:short)",
+              "--count=500",
+              glob,
+            ],
+            signal,
+          )
+        )
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+      const branches = await refLines("refs/heads/");
+      const remoteBranches = (await refLines("refs/remotes/")).filter(
+        (name) => !name.endsWith("/HEAD"),
       );
-      const branches = branchList
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
       return {
         isGitRepo: true,
         hasRemote: remotes.trim().length > 0,
         branches,
+        remoteBranches,
         ...parseStatus(raw),
       };
     },
@@ -492,11 +503,20 @@ export default experimental_defineHostEntry({
 
     async switchBranch({ cwd, name }, { signal }) {
       assertCwd(cwd);
-      const result = await runGit(cwd, ["switch", name], signal);
+      let result = await runGit(cwd, ["switch", name], signal);
+      if (result.code !== 0 && name.includes("/")) {
+        // A remote-tracking ref (origin/foo) with no local branch yet:
+        // create a local branch that tracks it.
+        result = await runGit(cwd, ["switch", "--track", name], signal);
+      }
       if (result.code !== 0) {
         return { ok: false, message: tidy(result.stderr || result.stdout) };
       }
-      return { ok: true, message: `Switched to ${name}.` };
+      const current =
+        (
+          await runGit(cwd, ["branch", "--show-current"], signal)
+        ).stdout.trim() || name;
+      return { ok: true, message: `Switched to ${current}.` };
     },
 
     async push({ cwd, remote, setUpstream, force }, { signal }) {

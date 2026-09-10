@@ -994,7 +994,9 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
             </DialogDescription>
           </DialogHeader>
 
-          {(status?.branches.length ?? 0) > 0 ? (
+          {(status?.branches.length ?? 0) +
+            (status?.remoteBranches.length ?? 0) >
+          0 ? (
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Switch to
               <div className="flex items-center gap-2">
@@ -1012,12 +1014,30 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
                   {status?.branch == null ? (
                     <option value="">(detached HEAD)</option>
                   ) : null}
-                  {status?.branches.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                      {name === status.branch ? " (current)" : ""}
-                    </option>
-                  ))}
+                  <optgroup label="Local">
+                    {status?.branches.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                        {name === status.branch ? " (current)" : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {(() => {
+                    const locals = new Set(status?.branches ?? []);
+                    const remoteOnly = (status?.remoteBranches ?? []).filter(
+                      (name) =>
+                        !locals.has(name.slice(name.indexOf("/") + 1)),
+                    );
+                    return remoteOnly.length > 0 ? (
+                      <optgroup label="Remote">
+                        {remoteOnly.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null;
+                  })()}
                 </select>
               </div>
             </label>

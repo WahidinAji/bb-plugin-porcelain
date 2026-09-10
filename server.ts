@@ -117,6 +117,7 @@ const EMPTY_STATUS = {
   behind: 0,
   hasRemote: false,
   branches: [] as string[],
+  remoteBranches: [] as string[],
   files: [] as never[],
 };
 

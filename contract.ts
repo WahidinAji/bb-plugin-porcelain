@@ -42,6 +42,8 @@ export const gitStatusSchema = z.object({
   hasRemote: z.boolean(),
   /** Local branch names, most-recently-committed first. */
   branches: z.array(z.string()),
+  /** Remote-tracking branch names (e.g. "origin/feature"), HEAD excluded. */
+  remoteBranches: z.array(z.string()),
   files: z.array(fileChangeSchema),
 });
 export type GitStatus = z.infer<typeof gitStatusSchema>;

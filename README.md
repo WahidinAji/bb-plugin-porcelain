@@ -28,8 +28,10 @@ VS Code SCM view, without leaving BB.
     viewer, with syntax highlighting and the live code theme)
   - commit message box → **Commit** (commits the index) or **Commit All**
     (stages everything first); ⌘/Ctrl+Enter commits
-  - **Branch** — a dialog to switch to any existing local branch (listed
-    most-recent first) or create a new one from HEAD and switch to it
+  - **Branch** — a dialog with a **Switch to** dropdown listing every local
+    branch (current one selected) and every remote-only branch (checking one
+    out creates a local tracking branch), plus a field to create a new branch
+    from HEAD and switch to it
   - icon controls carry hover/focus **tooltips**
   - **Push** — `git push`, with `--set-upstream` when the branch has no
     upstream yet
