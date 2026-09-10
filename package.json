@@ -1,7 +1,12 @@
 {
   "name": "bb-plugin-porcelain",
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
+  "files": [
+    "dist",
+    "docs"
+  ],
   "engines": {
     "bb": ">=0.41",
     "bbPluginSdk": ">=0.4.34"
@@ -16,6 +21,10 @@
     "app": "./app.tsx",
     "host": "./host.ts",
     "skills": []
+  },
+  "scripts": {
+    "build": "bb plugin build",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.1.3",
