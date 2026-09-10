@@ -157,11 +157,112 @@ function RowAction({
   );
 }
 
+type ViewMode = "list" | "tree";
+const VIEW_KEY = "bb-plugin-porcelain:view";
+
+function useViewMode(): [ViewMode, () => void] {
+  const [mode, setMode] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === "tree" ? "tree" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const toggle = useCallback(() => {
+    setMode((prev) => {
+      const next: ViewMode = prev === "list" ? "tree" : "list";
+      try {
+        localStorage.setItem(VIEW_KEY, next);
+      } catch {
+        /* private mode — memory only */
+      }
+      return next;
+    });
+  }, []);
+  return [mode, toggle];
+}
+
+interface TreeDir {
+  name: string;
+  path: string;
+  dirs: TreeDir[];
+  files: FileChange[];
+}
+
+/** Group flat file paths into a directory tree, collapsing single-child chains. */
+function buildTree(files: FileChange[]): TreeDir {
+  const root: TreeDir = { name: "", path: "", dirs: [], files: [] };
+  for (const file of files) {
+    const parts = file.path.split("/");
+    parts.pop(); // drop the filename; the FileChange itself is the leaf
+    let node = root;
+    let acc = "";
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part;
+      let child = node.dirs.find((d) => d.name === part);
+      if (!child) {
+        child = { name: part, path: acc, dirs: [], files: [] };
+        node.dirs.push(child);
+      }
+      node = child;
+    }
+    node.files.push(file);
+  }
+  const compact = (dir: TreeDir): TreeDir => {
+    const dirs = dir.dirs
+      .map(compact)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    let current: TreeDir = { ...dir, dirs };
+    while (
+      current.name !== "" &&
+      current.files.length === 0 &&
+      current.dirs.length === 1
+    ) {
+      const only = current.dirs[0];
+      current = {
+        name: `${current.name}/${only.name}`,
+        path: only.path,
+        dirs: only.dirs,
+        files: only.files,
+      };
+    }
+    return current;
+  };
+  return compact(root);
+}
+
+function collectFiles(dir: TreeDir): FileChange[] {
+  return [...dir.files, ...dir.dirs.flatMap(collectFiles)];
+}
+
+function sideActions(
+  side: "staged" | "unstaged",
+  disabled: boolean,
+  onStage: () => void,
+  onUnstage: () => void,
+  onDiscard: () => void,
+) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+      {side === "staged" ? (
+        <RowAction label="Unstage" onClick={onUnstage} disabled={disabled} />
+      ) : (
+        <>
+          <RowAction label="Discard" onClick={onDiscard} disabled={disabled} />
+          <RowAction label="Stage" onClick={onStage} disabled={disabled} />
+        </>
+      )}
+    </div>
+  );
+}
+
 function FileRow({
   file,
   side,
   active,
   disabled,
+  indent = 0,
+  hideDir = false,
   onSelect,
   onStage,
   onUnstage,
@@ -171,6 +272,8 @@ function FileRow({
   side: "staged" | "unstaged";
   active: boolean;
   disabled: boolean;
+  indent?: number;
+  hideDir?: boolean;
   onSelect: () => void;
   onStage: () => void;
   onUnstage: () => void;
@@ -190,6 +293,7 @@ function FileRow({
             onSelect();
           }
         }}
+        style={indent ? { paddingLeft: 12 + indent } : undefined}
         className={cn(
           "group flex cursor-pointer items-center gap-2 px-3 py-1 outline-none",
           active ? "bg-state-active" : "hover:bg-state-hover",
@@ -212,44 +316,149 @@ function FileRow({
         >
           {base}
         </span>
-        {dir ? (
+        {!hideDir && dir ? (
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
             {dir}
           </span>
         ) : (
           <span className="flex-1" />
         )}
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-          {side === "staged" ? (
-            <RowAction label="Unstage" onClick={onUnstage} disabled={disabled} />
-          ) : (
-            <>
-              <RowAction
-                label="Discard"
-                onClick={onDiscard}
-                disabled={disabled}
-              />
-              <RowAction label="Stage" onClick={onStage} disabled={disabled} />
-            </>
-          )}
-        </div>
+        {sideActions(side, disabled, onStage, onUnstage, onDiscard)}
       </div>
     </li>
   );
 }
 
+function DirRow({
+  dir,
+  side,
+  depth,
+  collapsed,
+  disabled,
+  onToggle,
+  onStage,
+  onUnstage,
+  onDiscard,
+}: {
+  dir: TreeDir;
+  side: "staged" | "unstaged";
+  depth: number;
+  collapsed: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  onStage: () => void;
+  onUnstage: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <li>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+        style={{ paddingLeft: 12 + depth * 12 }}
+        className="group flex cursor-pointer items-center gap-1 px-3 py-1 text-muted-foreground outline-none hover:bg-state-hover"
+      >
+        <Icon
+          name={collapsed ? "ChevronRight" : "ChevronDown"}
+          className="size-3.5 shrink-0"
+        />
+        <span className="truncate">{dir.name}</span>
+        {sideActions(side, disabled, onStage, onUnstage, onDiscard)}
+      </div>
+    </li>
+  );
+}
+
+interface GroupCallbacks {
+  side: "staged" | "unstaged";
+  disabled: boolean;
+  isActive: (file: FileChange) => boolean;
+  onSelect: (file: FileChange) => void;
+  onStagePaths: (paths: string[]) => void;
+  onUnstagePaths: (paths: string[]) => void;
+  onDiscardPaths: (paths: string[]) => void;
+}
+
 function Group({
   title,
-  count,
+  files,
+  view,
+  collapsed,
+  onToggleDir,
   headerAction,
-  children,
+  cb,
 }: {
   title: string;
-  count: number;
+  files: FileChange[];
+  view: ViewMode;
+  collapsed: Set<string>;
+  onToggleDir: (key: string) => void;
   headerAction?: { label: string; onClick: () => void; disabled?: boolean };
-  children: React.ReactNode;
+  cb: GroupCallbacks;
 }) {
-  if (count === 0) return null;
+  if (files.length === 0) return null;
+
+  const renderFile = (file: FileChange, indent: number, hideDir: boolean) => (
+    <FileRow
+      key={`${cb.side}:${file.path}`}
+      file={file}
+      side={cb.side}
+      active={cb.isActive(file)}
+      disabled={cb.disabled}
+      indent={indent}
+      hideDir={hideDir}
+      onSelect={() => cb.onSelect(file)}
+      onStage={() => cb.onStagePaths([file.path])}
+      onUnstage={() => cb.onUnstagePaths([file.path])}
+      onDiscard={() => cb.onDiscardPaths([file.path])}
+    />
+  );
+
+  const renderDir = (dir: TreeDir, depth: number): React.ReactNode[] => {
+    const key = `${cb.side}/${dir.path}`;
+    const isCollapsed = collapsed.has(key);
+    const under = collectFiles(dir).map((f) => f.path);
+    const rows: React.ReactNode[] = [
+      <DirRow
+        key={key}
+        dir={dir}
+        side={cb.side}
+        depth={depth}
+        collapsed={isCollapsed}
+        disabled={cb.disabled}
+        onToggle={() => onToggleDir(key)}
+        onStage={() => cb.onStagePaths(under)}
+        onUnstage={() => cb.onUnstagePaths(under)}
+        onDiscard={() => cb.onDiscardPaths(under)}
+      />,
+    ];
+    if (!isCollapsed) {
+      for (const child of dir.dirs) rows.push(...renderDir(child, depth + 1));
+      for (const file of dir.files) {
+        rows.push(renderFile(file, (depth + 1) * 12, true));
+      }
+    }
+    return rows;
+  };
+
+  let rows: React.ReactNode;
+  if (view === "list") {
+    rows = files.map((file) => renderFile(file, 0, false));
+  } else {
+    const tree = buildTree(files);
+    rows = [
+      ...tree.dirs.flatMap((child) => renderDir(child, 0)),
+      ...tree.files.map((file) => renderFile(file, 0, true)),
+    ];
+  }
+
   return (
     <section>
       <div className="sticky top-0 z-10 flex items-center gap-2 bg-background/95 px-3 py-1.5 backdrop-blur">
@@ -257,7 +466,7 @@ function Group({
           {title}
         </span>
         <span className="rounded bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
-          {count}
+          {files.length}
         </span>
         {headerAction ? (
           <button
@@ -270,7 +479,7 @@ function Group({
           </button>
         ) : null}
       </div>
-      <ul>{children}</ul>
+      <ul>{rows}</ul>
     </section>
   );
 }
@@ -288,6 +497,18 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
   const [branchOpen, setBranchOpen] = useState(false);
   const [branchName, setBranchName] = useState("");
   const [pendingDiscard, setPendingDiscard] = useState<string[] | null>(null);
+  const [viewMode, toggleViewMode] = useViewMode();
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const toggleDir = useCallback((key: string) => {
+    setCollapsedDirs((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const status = data?.status;
   const repos = data?.repos ?? [];
@@ -369,6 +590,7 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
     if (relPath === selectedRepo || busy) return;
     setSelected(null);
     setCommitMessage("");
+    setCollapsedDirs(new Set());
     await run("repo", () => rpc.call("selectRepo", { threadId, relPath }));
   };
 
@@ -481,50 +703,46 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
         >
           <Group
             title="Staged Changes"
-            count={stagedFiles.length}
+            files={stagedFiles}
+            view={viewMode}
+            collapsed={collapsedDirs}
+            onToggleDir={toggleDir}
             headerAction={{
               label: "Unstage All",
               disabled: busy !== null,
               onClick: () => unstage(stagedFiles.map((f) => f.path)),
             }}
-          >
-            {stagedFiles.map((file) => (
-              <FileRow
-                key={`s:${file.path}`}
-                file={file}
-                side="staged"
-                active={isSelected(file, "staged")}
-                disabled={busy !== null}
-                onSelect={() => select(file, "staged")}
-                onStage={() => stage([file.path])}
-                onUnstage={() => unstage([file.path])}
-                onDiscard={() => setPendingDiscard([file.path])}
-              />
-            ))}
-          </Group>
+            cb={{
+              side: "staged",
+              disabled: busy !== null,
+              isActive: (file) => isSelected(file, "staged"),
+              onSelect: (file) => select(file, "staged"),
+              onStagePaths: (paths) => stage(paths),
+              onUnstagePaths: (paths) => unstage(paths),
+              onDiscardPaths: (paths) => setPendingDiscard(paths),
+            }}
+          />
           <Group
             title="Changes"
-            count={unstagedFiles.length}
+            files={unstagedFiles}
+            view={viewMode}
+            collapsed={collapsedDirs}
+            onToggleDir={toggleDir}
             headerAction={{
               label: "Stage All",
               disabled: busy !== null,
               onClick: () => stage(unstagedFiles.map((f) => f.path)),
             }}
-          >
-            {unstagedFiles.map((file) => (
-              <FileRow
-                key={`u:${file.path}`}
-                file={file}
-                side="unstaged"
-                active={isSelected(file, "unstaged")}
-                disabled={busy !== null}
-                onSelect={() => select(file, "unstaged")}
-                onStage={() => stage([file.path])}
-                onUnstage={() => unstage([file.path])}
-                onDiscard={() => setPendingDiscard([file.path])}
-              />
-            ))}
-          </Group>
+            cb={{
+              side: "unstaged",
+              disabled: busy !== null,
+              isActive: (file) => isSelected(file, "unstaged"),
+              onSelect: (file) => select(file, "unstaged"),
+              onStagePaths: (paths) => stage(paths),
+              onUnstagePaths: (paths) => unstage(paths),
+              onDiscardPaths: (paths) => setPendingDiscard(paths),
+            }}
+          />
         </div>
 
         {selected ? (
@@ -626,6 +844,21 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
           </span>
         ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label={
+              viewMode === "list" ? "View as tree" : "View as list"
+            }
+            aria-pressed={viewMode === "tree"}
+            onClick={toggleViewMode}
+          >
+            <Icon
+              name={viewMode === "list" ? "Layers" : "ListView"}
+              className="size-4"
+            />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
