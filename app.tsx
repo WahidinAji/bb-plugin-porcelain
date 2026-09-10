@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { Hint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type Contract = typeof rpcContract;
@@ -637,6 +638,15 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
     }
   };
 
+  const checkoutBranch = async (name: string) => {
+    if (busy || name === status?.branch) return;
+    setSelected(null);
+    const result = await run("branch", () =>
+      rpc.call("switchBranch", { threadId, name }),
+    );
+    if (result && (result as { ok: boolean }).ok) setBranchOpen(false);
+  };
+
   const isSelected = (file: FileChange, side: "staged" | "unstaged") =>
     selected?.path === file.path && selected.staged === (side === "staged");
 
@@ -752,23 +762,35 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
                 {selected.path}
               </span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDiffView((v) => (v === "unified" ? "split" : "unified"))
+                <Hint
+                  label={
+                    diffView === "unified"
+                      ? "Side-by-side view"
+                      : "Inline view"
                   }
-                  className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground"
                 >
-                  {diffView === "unified" ? "Split" : "Unified"}
-                </button>
-                <button
-                  type="button"
-                  aria-label="Close diff"
-                  onClick={() => setSelected(null)}
-                  className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground"
-                >
-                  ✕
-                </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDiffView((v) =>
+                        v === "unified" ? "split" : "unified",
+                      )
+                    }
+                    className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground"
+                  >
+                    {diffView === "unified" ? "Split" : "Unified"}
+                  </button>
+                </Hint>
+                <Hint label="Close diff">
+                  <button
+                    type="button"
+                    aria-label="Close diff"
+                    onClick={() => setSelected(null)}
+                    className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground"
+                  >
+                    ✕
+                  </button>
+                </Hint>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
@@ -844,31 +866,35 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
           </span>
         ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label={
-              viewMode === "list" ? "View as tree" : "View as list"
-            }
-            aria-pressed={viewMode === "tree"}
-            onClick={toggleViewMode}
-          >
-            <Icon
-              name={viewMode === "list" ? "Layers" : "ListView"}
-              className="size-4"
-            />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label="Refresh"
-            disabled={busy !== null}
-            onClick={refresh}
-          >
-            <Icon name="ArrowReloadHorizontal" className="size-4" />
-          </Button>
+          <Hint label={viewMode === "list" ? "View as tree" : "View as list"}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label={
+                viewMode === "list" ? "View as tree" : "View as list"
+              }
+              aria-pressed={viewMode === "tree"}
+              onClick={toggleViewMode}
+            >
+              <Icon
+                name={viewMode === "list" ? "Layers" : "ListView"}
+                className="size-4"
+              />
+            </Button>
+          </Hint>
+          <Hint label="Refresh">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Refresh"
+              disabled={busy !== null}
+              onClick={refresh}
+            >
+              <Icon name="ArrowReloadHorizontal" className="size-4" />
+            </Button>
+          </Hint>
           <Button
             variant="ghost"
             size="sm"
@@ -943,14 +969,16 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
           <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
             {notice.text}
           </span>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => setNotice(null)}
-            className="shrink-0 hover:text-foreground"
-          >
-            ✕
-          </button>
+          <Hint label="Dismiss">
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setNotice(null)}
+              className="shrink-0 hover:text-foreground"
+            >
+              ✕
+            </button>
+          </Hint>
         </div>
       ) : null}
 
@@ -959,32 +987,69 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
       <Dialog open={branchOpen} onOpenChange={setBranchOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create branch</DialogTitle>
+            <DialogTitle>Branches</DialogTitle>
             <DialogDescription>
-              Branches from the current HEAD and switches to it.
+              Switch to an existing branch, or create one from the current
+              HEAD.
             </DialogDescription>
           </DialogHeader>
-          <Input
-            autoFocus
-            value={branchName}
-            onChange={(event) => setBranchName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void submitBranch();
-              }
-            }}
-            placeholder="feature/my-change"
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setBranchOpen(false)}>
-              Cancel
-            </Button>
+
+          {(status?.branches.length ?? 0) > 0 ? (
+            <div className="max-h-56 overflow-y-auto rounded-md border border-border">
+              {status?.branches.map((name) => {
+                const current = name === status.branch;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    disabled={busy !== null || current}
+                    onClick={() => void checkoutBranch(name)}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-state-hover disabled:cursor-default disabled:opacity-100",
+                      current && "text-muted-foreground",
+                    )}
+                  >
+                    <Icon
+                      name={current ? "Check" : "GitBranch"}
+                      className="size-3.5 shrink-0"
+                    />
+                    <span className="truncate">{name}</span>
+                    {current ? (
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        current
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <Input
+              autoFocus
+              value={branchName}
+              onChange={(event) => setBranchName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void submitBranch();
+                }
+              }}
+              placeholder="new-branch-name"
+            />
             <Button
+              className="shrink-0"
               disabled={branchName.trim() === "" || busy !== null}
               onClick={() => void submitBranch()}
             >
-              Create &amp; switch
+              Create
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBranchOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1054,25 +1119,28 @@ function ChangesHeaderButton({
   const active = status?.isGitRepo ?? false;
   const count = status?.files.length ?? 0;
   const badge = active ? String(count) : `${repoCount} repos`;
+  const hint = active
+    ? status?.branch
+      ? `Changes on ${status.branch} — ${count} file${count === 1 ? "" : "s"}`
+      : `Changes — ${count} file${count === 1 ? "" : "s"}`
+    : `Choose from ${repoCount} repositories`;
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 gap-1.5 px-2"
-      aria-label={
-        active
-          ? `Changes: ${count} file${count === 1 ? "" : "s"}`
-          : `Changes: choose from ${repoCount} repositories`
-      }
-      onClick={() =>
-        nav.openThreadPanel({ actionId: "porcelain", title: "Changes" })
-      }
-    >
-      <Icon name="GitBranch" className="size-4" />
-      {isCompactViewport ? null : (
-        <span className="text-xs tabular-nums">{badge}</span>
-      )}
-    </Button>
+    <Hint label={hint}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1.5 px-2"
+        aria-label={hint}
+        onClick={() =>
+          nav.openThreadPanel({ actionId: "porcelain", title: "Changes" })
+        }
+      >
+        <Icon name="GitBranch" className="size-4" />
+        {isCompactViewport ? null : (
+          <span className="text-xs tabular-nums">{badge}</span>
+        )}
+      </Button>
+    </Hint>
   );
 }
 

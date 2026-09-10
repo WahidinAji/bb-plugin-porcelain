@@ -89,6 +89,10 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: actionResult,
   },
+  switchBranch: {
+    input: thread.extend({ name: z.string().min(1).max(255) }).strict(),
+    output: actionResult,
+  },
   push: {
     input: thread
       .extend({
@@ -112,6 +116,7 @@ const EMPTY_STATUS = {
   ahead: 0,
   behind: 0,
   hasRemote: false,
+  branches: [] as string[],
   files: [] as never[],
 };
 
@@ -340,6 +345,13 @@ export default async function plugin(bb: BbPluginApi) {
         { cwd, name, checkout },
         { hostId },
       );
+      notify(threadId);
+      return result;
+    },
+
+    async switchBranch({ threadId, name }) {
+      const { hostId, cwd } = await workspace(threadId);
+      const result = await host.call("switchBranch", { cwd, name }, { hostId });
       notify(threadId);
       return result;
     },

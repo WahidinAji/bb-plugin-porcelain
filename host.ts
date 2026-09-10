@@ -130,7 +130,9 @@ async function isInsideWorkTree(cwd: string, signal: AbortSignal): Promise<boole
   return result.code === 0 && result.stdout.trim() === "true";
 }
 
-function parseStatus(raw: string): Omit<GitStatus, "isGitRepo" | "hasRemote"> {
+function parseStatus(
+  raw: string,
+): Omit<GitStatus, "isGitRepo" | "hasRemote" | "branches"> {
   const tokens = raw.split("\0");
   let branch: string | null = null;
   let upstream: string | null = null;
@@ -248,6 +250,7 @@ export default experimental_defineHostEntry({
           ahead: 0,
           behind: 0,
           hasRemote: false,
+          branches: [],
           files: [],
         };
       }
@@ -263,9 +266,25 @@ export default experimental_defineHostEntry({
         signal,
       );
       const remotes = await git(cwd, ["remote"], signal);
+      const branchList = await git(
+        cwd,
+        [
+          "for-each-ref",
+          "--sort=-committerdate",
+          "--format=%(refname:short)",
+          "--count=200",
+          "refs/heads/",
+        ],
+        signal,
+      );
+      const branches = branchList
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
       return {
         isGitRepo: true,
         hasRemote: remotes.trim().length > 0,
+        branches,
         ...parseStatus(raw),
       };
     },
@@ -469,6 +488,15 @@ export default experimental_defineHostEntry({
         ok: true,
         message: checkout ? `Switched to new branch ${name}.` : `Created branch ${name}.`,
       };
+    },
+
+    async switchBranch({ cwd, name }, { signal }) {
+      assertCwd(cwd);
+      const result = await runGit(cwd, ["switch", name], signal);
+      if (result.code !== 0) {
+        return { ok: false, message: tidy(result.stderr || result.stdout) };
+      }
+      return { ok: true, message: `Switched to ${name}.` };
     },
 
     async push({ cwd, remote, setUpstream, force }, { signal }) {

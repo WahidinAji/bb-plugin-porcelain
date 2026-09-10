@@ -40,6 +40,8 @@ export const gitStatusSchema = z.object({
   ahead: z.number().int(),
   behind: z.number().int(),
   hasRemote: z.boolean(),
+  /** Local branch names, most-recently-committed first. */
+  branches: z.array(z.string()),
   files: z.array(fileChangeSchema),
 });
 export type GitStatus = z.infer<typeof gitStatusSchema>;
@@ -127,6 +129,10 @@ export const hostContract = defineRpcContract({
         checkout: z.boolean().default(true),
       })
       .strict(),
+    output: actionResult,
+  },
+  switchBranch: {
+    input: z.object({ cwd, name: z.string().min(1).max(255) }).strict(),
     output: actionResult,
   },
   push: {
