@@ -995,57 +995,58 @@ function ChangesPanel({ threadId }: PluginThreadPanelProps) {
           </DialogHeader>
 
           {(status?.branches.length ?? 0) > 0 ? (
-            <div className="max-h-56 overflow-y-auto rounded-md border border-border">
-              {status?.branches.map((name) => {
-                const current = name === status.branch;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    disabled={busy !== null || current}
-                    onClick={() => void checkoutBranch(name)}
-                    className={cn(
-                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-state-hover disabled:cursor-default disabled:opacity-100",
-                      current && "text-muted-foreground",
-                    )}
-                  >
-                    <Icon
-                      name={current ? "Check" : "GitBranch"}
-                      className="size-3.5 shrink-0"
-                    />
-                    <span className="truncate">{name}</span>
-                    {current ? (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        current
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Switch to
+              <div className="flex items-center gap-2">
+                <Icon
+                  name="GitBranch"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+                <select
+                  aria-label="Switch branch"
+                  value={status?.branch ?? ""}
+                  disabled={busy !== null}
+                  onChange={(event) => void checkoutBranch(event.target.value)}
+                  className="h-8 min-w-0 flex-1 truncate rounded-md border border-input bg-transparent px-2 text-sm text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  {status?.branch == null ? (
+                    <option value="">(detached HEAD)</option>
+                  ) : null}
+                  {status?.branches.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                      {name === status.branch ? " (current)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
           ) : null}
 
-          <div className="flex items-center gap-2">
-            <Input
-              autoFocus
-              value={branchName}
-              onChange={(event) => setBranchName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void submitBranch();
-                }
-              }}
-              placeholder="new-branch-name"
-            />
-            <Button
-              className="shrink-0"
-              disabled={branchName.trim() === "" || busy !== null}
-              onClick={() => void submitBranch()}
-            >
-              Create
-            </Button>
-          </div>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Create new
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={branchName}
+                onChange={(event) => setBranchName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void submitBranch();
+                  }
+                }}
+                placeholder="new-branch-name"
+              />
+              <Button
+                className="shrink-0"
+                disabled={branchName.trim() === "" || busy !== null}
+                onClick={() => void submitBranch()}
+              >
+                Create
+              </Button>
+            </div>
+          </label>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setBranchOpen(false)}>
