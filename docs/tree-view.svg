@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="340" viewBox="0 0 560 340" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <style>
+      .panel{fill:#ffffff;stroke:#e4e4e7}
+      .divider{stroke:#e4e4e7;stroke-width:1}
+      .muted{fill:#71717a;font-size:12px}
+      .group{fill:#71717a;font-size:11px;font-weight:700;letter-spacing:.06em}
+      .badge{fill:#71717a;font-size:11px}
+      .mono{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12px}
+      .add{fill:#16a34a}.del{fill:#dc2626}.mod{fill:#2563eb}
+      .btn{fill:#eef2ff;stroke:#c7d2fe}
+      .chip{fill:#f4f4f5;stroke:#e4e4e7}
+      .hoverRow{fill:#f4f4f5}
+    </style>
+  </defs>
+
+  <rect class="panel" x="0.5" y="0.5" width="559" height="339" rx="10"/>
+
+  <!-- toolbar corner: tree view active -->
+  <line class="divider" x1="0" y1="40" x2="560" y2="40"/>
+  <text class="muted" x="16" y="25">⎇ main</text>
+  <rect class="btn" x="470" y="10" width="26" height="22" rx="6"/><text class="muted" x="477" y="25">🌳</text>
+  <rect class="chip" x="502" y="10" width="26" height="22" rx="6"/><text class="muted" x="510" y="25">⟳</text>
+
+  <text class="group" x="16" y="62">STAGED CHANGES</text>
+  <rect class="chip" x="140" y="50" width="20" height="15" rx="4"/>
+  <text class="badge" x="146" y="62">4</text>
+
+  <g class="mono" fill="#18181b">
+    <!-- src (compacted single-child chain) -->
+    <text x="16" y="88" fill="#71717a">▾ src/app</text>
+    <text x="40" y="110"><tspan class="mod">M</tspan>  dashboard.tsx</text>
+    <text x="40" y="130"><tspan class="add">A</tspan>  report.tsx</text>
+
+    <!-- tests -->
+    <text x="16" y="154" fill="#71717a">▾ tests/e2e</text>
+    <rect class="hoverRow" x="0" y="162" width="560" height="22"/>
+    <text x="40" y="178"><tspan class="mod">M</tspan>  report-card.spec.ts</text>
+    <text class="badge" x="470" y="178">Discard</text>
+    <text class="badge" x="520" y="178">Stage</text>
+
+    <!-- docs collapsed -->
+    <text x="16" y="204" fill="#71717a">▸ docs</text>
+    <text class="badge" x="470" y="204">Stage</text>
+  </g>
+
+  <line class="divider" x1="0" y1="222" x2="560" y2="222"/>
+  <text class="group" x="16" y="244">CHANGES</text>
+  <rect class="chip" x="86" y="232" width="20" height="15" rx="4"/>
+  <text class="badge" x="92" y="244">1</text>
+  <g class="mono" fill="#18181b">
+    <text x="16" y="270"><tspan class="mod">M</tspan>  README.md</text>
+  </g>
+
+  <text class="muted" x="16" y="316">Tree view — single-child folders compacted (src/app); folder rows
+    stage / discard everything beneath them.</text>
+</svg>

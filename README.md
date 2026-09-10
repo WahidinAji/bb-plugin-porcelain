@@ -8,6 +8,14 @@ Every thread runs in an environment with a working directory. This plugin
 gives that working tree the same review-and-commit workflow you get from the
 VS Code SCM view, without leaving BB.
 
+## Screenshots
+
+| Changes panel | Tree view |
+| ------------- | --------- |
+| [![Changes panel](docs/changes-panel.png)](docs/README.md) | [![Tree view](docs/tree-view.png)](docs/README.md) |
+
+See [docs/README.md](docs/README.md) for a full walkthrough of each surface.
+
 ## Surfaces
 
 - **"Changes" tab** in the thread's right panel (`+` → Changes). Flush-layout

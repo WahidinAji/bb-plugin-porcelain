@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="560" viewBox="0 0 760 560" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <style>
+      .bg{fill:#ffffff}
+      .panel{fill:#ffffff;stroke:#e4e4e7}
+      .divider{stroke:#e4e4e7;stroke-width:1}
+      .txt{fill:#18181b;font-size:13px}
+      .muted{fill:#71717a;font-size:12px}
+      .badge{fill:#71717a;font-size:11px}
+      .group{fill:#71717a;font-size:11px;font-weight:700;letter-spacing:.06em}
+      .mono{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12px}
+      .add{fill:#16a34a}
+      .del{fill:#dc2626}
+      .mod{fill:#2563eb}
+      .btn{fill:#f4f4f5;stroke:#e4e4e7}
+      .btnp{fill:#18181b}
+      .btnpTxt{fill:#ffffff;font-size:12px}
+      .chip{fill:#f4f4f5;stroke:#e4e4e7}
+      .hoverRow{fill:#f4f4f5}
+      .codebg{fill:#fafafa}
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="760" height="560" rx="10"/>
+  <rect class="panel" x="0.5" y="0.5" width="759" height="559" rx="10"/>
+
+  <!-- repo picker row -->
+  <line class="divider" x1="0" y1="34" x2="760" y2="34"/>
+  <text class="muted" x="16" y="22">📁</text>
+  <rect class="chip" x="34" y="9" width="230" height="18" rx="5"/>
+  <text class="mono" x="42" y="22" fill="#18181b">bb-plugin-porcelain · main</text>
+
+  <!-- toolbar -->
+  <line class="divider" x1="0" y1="72" x2="760" y2="72"/>
+  <text class="txt" x="16" y="56">⎇</text>
+  <text class="txt" x="34" y="56" font-weight="600">main</text>
+  <text class="muted" x="76" y="56">↑2</text>
+  <rect class="btn" x="556" y="42" width="26" height="24" rx="6"/><text class="muted" x="564" y="58">▤</text>
+  <rect class="btn" x="588" y="42" width="26" height="24" rx="6"/><text class="muted" x="596" y="58">⟳</text>
+  <rect class="btn" x="620" y="42" width="62" height="24" rx="6"/><text class="muted" x="630" y="58">⎇ Branch</text>
+  <rect class="btn" x="688" y="42" width="56" height="24" rx="6"/><text class="muted" x="698" y="58">↑ Push</text>
+
+  <!-- commit box -->
+  <line class="divider" x1="0" y1="140" x2="760" y2="140"/>
+  <rect x="16" y="84" width="728" height="34" rx="6" fill="#ffffff" stroke="#e4e4e7"/>
+  <text class="mono" x="26" y="105" fill="#18181b">porcelain: wire the report card into the tall UI</text>
+  <rect class="btnp" x="16" y="124" width="70" height="24" rx="6"/>
+  <text class="btnpTxt" x="30" y="140">✓ Commit</text>
+  <text class="muted" x="96" y="140">2 staged</text>
+
+  <!-- staged group -->
+  <rect x="0" y="152" width="760" height="22" fill="#ffffff"/>
+  <text class="group" x="16" y="167">STAGED CHANGES</text>
+  <rect class="chip" x="140" y="155" width="20" height="15" rx="4"/>
+  <text class="badge" x="146" y="167">2</text>
+  <text class="badge" x="700" y="167" text-anchor="end">Unstage All</text>
+
+  <g transform="translate(0,174)">
+    <rect class="hoverRow" x="0" y="0" width="760" height="24"/>
+    <text class="mono mod" x="16" y="16">M</text>
+    <text class="mono" x="34" y="16" fill="#18181b">server.ts</text>
+    <text class="mono muted" x="96" y="16">src/</text>
+    <text class="badge" x="716" y="16" text-anchor="end">Unstage</text>
+  </g>
+  <g transform="translate(0,198)">
+    <text class="mono add" x="16" y="16">A</text>
+    <text class="mono" x="34" y="16" fill="#18181b">helper.ts</text>
+    <text class="mono muted" x="96" y="16">src/</text>
+  </g>
+
+  <!-- changes group -->
+  <rect x="0" y="228" width="760" height="22" fill="#ffffff"/>
+  <text class="group" x="16" y="243">CHANGES</text>
+  <rect class="chip" x="86" y="231" width="20" height="15" rx="4"/>
+  <text class="badge" x="92" y="243">1</text>
+  <text class="badge" x="700" y="243" text-anchor="end">Stage All</text>
+
+  <g transform="translate(0,250)">
+    <rect class="hoverRow" x="0" y="0" width="760" height="24"/>
+    <text class="mono mod" x="16" y="16">M</text>
+    <text class="mono" x="34" y="16" fill="#18181b">README.md</text>
+    <text class="badge" x="676" y="16" text-anchor="end">Discard</text>
+    <text class="badge" x="716" y="16" text-anchor="end">Stage</text>
+  </g>
+
+  <!-- diff -->
+  <line class="divider" x1="0" y1="286" x2="760" y2="286"/>
+  <text class="mono muted" x="16" y="304">src/server.ts</text>
+  <text class="badge" x="700" y="304" text-anchor="end">Split</text>
+  <text class="badge" x="736" y="304" text-anchor="end">✕</text>
+  <rect class="codebg" x="0" y="314" width="760" height="238"/>
+  <g class="mono">
+    <text x="16" y="334" fill="#71717a">@@ -12,7 +12,9 @@ export async function status(</text>
+    <text x="16" y="354" fill="#18181b">   const env = await sdk.environments.get({ id });</text>
+    <text x="16" y="374" class="del">-  return { ok: true, files };</text>
+    <text x="16" y="394" class="add">+  const branches = await listBranches(env.path);</text>
+    <text x="16" y="414" class="add">+  return { ok: true, files, branches };</text>
+    <text x="16" y="434" fill="#18181b">   }</text>
+    <text x="16" y="474" fill="#71717a">@@ -40,3 +42,6 @@</text>
+    <text x="16" y="494" class="add">+  // remote-tracking branches, HEAD excluded</text>
+    <text x="16" y="514" class="add">+  const remotes = await refLines("refs/remotes/");</text>
+  </g>
+</svg>
