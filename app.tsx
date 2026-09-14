@@ -151,7 +151,7 @@ function RowAction({
         event.stopPropagation();
         onClick();
       }}
-      className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground disabled:opacity-40"
+      className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground disabled:opacity-40 max-md:pointer-coarse:px-2.5 max-md:pointer-coarse:py-1.5 max-md:pointer-coarse:text-sm"
     >
       {label}
     </button>
@@ -244,7 +244,7 @@ function sideActions(
   onDiscard: () => void,
 ) {
   return (
-    <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+    <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 max-md:pointer-coarse:opacity-100">
       {side === "staged" ? (
         <RowAction label="Unstage" onClick={onUnstage} disabled={disabled} />
       ) : (
